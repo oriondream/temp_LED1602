@@ -1,3 +1,5 @@
+#include <Wire.h>
+
 /*
   LiquidCrystal Library - Hello World
 
@@ -51,7 +53,6 @@
 #include <OneWire.h>
 #define ONE_WIRE_PIN 6
 
-File myFile;
 OneWire oneWire(ONE_WIRE_PIN);
 DallasTemperature sensors(&oneWire);
 
@@ -116,8 +117,34 @@ void display_date()
     lcd.print(lcd_date);
 }
 
+byte s;
+byte m;
+byte h;
+
 void display_time()
 {
+    // hour part
+    lcd_time = "";
+    if (h < 10)
+    {
+        lcd_time += ' ';
+    }
+    lcd_time += h + String{":"};
+
+    // minute part
+    if (m < 10)
+    {
+        lcd_time += '0';
+    }
+    lcd_time += m + String{':'};
+
+    // second part
+    if (s < 10)
+    {
+        lcd_time += '0';
+    }
+    lcd_time += s;
+
     lcd.setCursor(8, 1);
     lcd.print(lcd_time);
 }
@@ -131,13 +158,31 @@ void call(void(*f)(...), unsigned long& last_update, unsigned long const freq)
         last_update = now;
     }
 }
+bool century_rollover;
+
+bool H12 = false;
+bool PM = false;
 
 class DataEntry 
 {
     byte _year, _month, _date, _hour, _minute, _second;       
     float _temperature;
+private:
+    String zero(byte v) {
+        if (v < 10)
+            return String{"0"};
+        else
+            return String{""};
+    }
 public:
     DataEntry(){};
+    DataEntry(const DS3231* rtc, const DallasTemperature* temp)
+        : DataEntry(
+            rtc->getYear(), rtc->getMonth(century_rollover), rtc->getDate(), 
+            rtc->getHour(H12,PM), rtc->getMinute(), rtc->getSecond(),
+            temp->getTempCByIndex(0)
+          ) {
+    }
     DataEntry(byte year, byte month, byte date, byte hour, byte minute, byte second, float temperature)
         : _year(year), _month(month), _date(date), _hour(hour), _minute(minute), _second(second), _temperature(temperature) {}
     byte getYear() {return _year;}
@@ -147,8 +192,43 @@ public:
     byte getMinute() {return _minute;}
     byte getSecond() {return _second;}
     float getTemp() {return _temperature;}
+
+    String getTimeString() {
+      return zero(_hour) + String{_hour} + ":" 
+           + zero(_minute) + String{_minute} + ":"
+           + zero(_second) + String{_second};
+    }
+
+    String getDateString() {
+      return String{_year} + "/" + zero(_month) + String{_month} + "/" 
+           + zero(_date) + String{_date};
+    }
+
+    String getDateTimeString() {
+      return String{_year} + zero(_month) + String{_month} 
+                           + zero(_date) + String{_date} 
+                           + zero(_hour) + String{_hour} 
+                           + zero(_minute) + String{_minute} 
+                           + zero(_second) + String{_second};
+    }
+    String getTimeShort() {
+      return zero(_hour) + String{_hour} 
+           + zero(_minute) + String{_minute};
+    }
 };
 
+void setRTC()
+{
+//    rtc.setYear(19);
+//    rtc.setMonth(03);
+//    rtc.setDate(23);
+//    rtc.setHour(18);
+//    rtc.setMinute(06);
+//    rtc.setSecond(30);  
+}
+
+String strSession;
+String startTimeStr;
 void setup()
 {
   // set up the LCD's number of columns and rows:
@@ -175,49 +255,22 @@ void setup()
     }
     //    Serial.println("initialization done.");
 
-    // open the file. note that only one file can be open at a time,
-    // so you have to close this one before opening another.
-    myFile = SD.open("test.txt", FILE_WRITE);
-
-    // if the file opened okay, write to it:
-    if (myFile) 
-    {
-        //        Serial.print("Writing to test.txt...");
-        myFile.println("testing 1, 2, 3.");
-        // close the file:
-        myFile.close();
-        //        Serial.println("done.");
-    } 
-    else {
-        // if the file didn't open, print an error:
-        //        Serial.println("error opening test.txt");
-    }
-
+    // Delay a bit so that RTC would properly init
+    DataEntry startTime(&rtc, &sensors);
+//    startTimeStr = startTime.getTimeShort();
+    startTimeStr = "0001";
+    
     Wire.begin();
     
     display_date();
-    
-//    rtc.setYear(19);
-//    rtc.setMonth(03);
-//    rtc.setDate(23);
-//    rtc.setHour(18);
-//    rtc.setMinute(06);
-//    rtc.setSecond(30);
 }
-
-bool H12 = false;
-bool PM = false;
 
 DataEntry data_entries[10];
 byte iDE = 0;
 
-byte s;
-byte m;
-byte h;
-
 void record_data()
 {    
-    data_entries[iDE] = DataEntry(year, month, date, h, m, s, t);
+    data_entries[iDE] = DataEntry(&rtc, &sensors);
     iDE = (iDE + 1) % 10;
 }
 
@@ -228,12 +281,12 @@ void write_SD()
 
     if (fTempLog) {
         for (auto e:data_entries) {
-            String str = String{e.getDate()} + String{"/"} + String{e.getMonth()} + String{"/"} + String{e.getYear()} + String{"\t"} 
-                       + String{e.getHour()} + String{":"} + String{e.getMinute()} + String{":"} + String{e.getSecond()} + String{"\t"} + String{e.getTemp()};
+            String str = e.getDateString() + String{"\t"} 
+                       + e.getTimeString() + String{"\t"} + String{e.getTemp()};
             fTempLog.println(str);
         }
         fTempLog.close();
-    }  
+    }
 }
 
 void loop() 
@@ -245,37 +298,9 @@ void loop()
     s = rtc.getSecond();
     m = rtc.getMinute();
     h = rtc.getHour(H12,PM);
-
-//    if (time - last_temp_update > 1000)
-//    {
-//        display_temp();
-//        last_temp_update = time;
-//    }
-
-    // hour part
-    lcd_time = "";
-    if (h < 10)
-    {
-        lcd_time += ' ';
-    }
-    lcd_time += h + String{":"};
-
-    // minute part
-    if (m < 10)
-    {
-        lcd_time += '0';
-    }
-    lcd_time += m + String{':'};
-
-    // second part
-    if (s < 10)
-    {
-        lcd_time += '0';
-    }
-    lcd_time += s;
-
+    
     call(record_data, last_record_data, 1000);
-    //call(write_SD, last_SD_card_write, 10000);
+    call(write_SD, last_SD_card_write, 10000);
     call(display_temp, last_temp_update, 1000);
     call(display_time, last_time_update, 1000);
 }
