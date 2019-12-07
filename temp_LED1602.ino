@@ -1,4 +1,5 @@
 #include <Wire.h>
+#include "RTClib.h"
 
 /*
   The circuit:
@@ -13,7 +14,6 @@
    LCD D6 -> Arduino 3
    LCD A -> Arduino 2
 */
-#include <DS3231.h>
 #include <Wire.h>
 // File
 #include <SPI.h>
@@ -32,13 +32,14 @@ DallasTemperature sensors(&oneWire);
 
 // initialize the library by associating any needed LCD interface pin
 // with the arduino pin number it is connected to
-const int rs = 9, en = 8, d4 = 5, d5 = 4, d6 = 3, d7 = 2;
-LiquidCrystal lcd(rs, en, d4, d5, d6, d7);
+const int RS = 9, EN = 8, D4 = 14, D5 = 15, D6 = 16, D7 = 17;
+LiquidCrystal lcd(RS, EN, D4, D5, D6, D7);
 
 bool SD_OK = true;
 
 // Realtime clock object
-DS3231  rtc;
+RTC_DS3231  rtc;
+DateTime rtc_now;
 
 bool LED_ON = true;
 
@@ -71,65 +72,74 @@ void display_temp()
 String lcd_time;
 
 int year, month, date;
+byte Year;
+byte Month;
+byte Date;
+byte DoW;
+byte Hour;
+byte Minute;
+byte Second;
 
 void display_date()
 {
     String lcd_date = "";
-    lcd_date += (date = rtc.getDate());
+    DateTime dt = rtc.now();
+    lcd_date += dt.day();
     lcd_date += "/";
-    bool century_rollover;
-    lcd_date += (month = rtc.getMonth(century_rollover));
-    lcd_date +="/20";
-    lcd_date += (year = rtc.getYear());
+    lcd_date += dt.month();
+    lcd_date += "/20";
+    lcd_date += dt.year();
 
-    int px;
-
-    switch (lcd_date.length()) 
-    {
-        case 8:
-            px = 8;
-            break;
-        case 9:
-            px = 7;
-            break;
-        case 10:
-            px = 6;
-            break;
-    }
-    lcd.setCursor(px,0);
+    lcd.setCursor(7,0);
     lcd.print(lcd_date);
 }
 
-byte s;
-byte m;
-byte h;
+uint8_t last_date, last_hour, last_minute;
 
 void display_time()
 {
-    // hour part
     lcd_time = "";
-    if (h < 10)
-    {
-        lcd_time += ' ';
-    }
-    lcd_time += h + String{":"};
 
-    // minute part
-    if (m < 10)
-    {
-        lcd_time += '0';
+    uint8_t hh, mm, ss;
+    hh = rtc_now.hour();
+    if (hh != last_hour) {
+        last_hour = hh;
+        if (rtc_now.date() != last_date) {
+            last_date = rtc_now.date();
+            display_date();
+        }
+        
+        if (hh < 10)
+        {
+            lcd_time += ' ';
+        }
+        lcd_time += hh + String{":00:00"};
+        lcd.setCursor(8, 1);
+        lcd.print(lcd_time);
     }
-    lcd_time += m + String{':'};
-
-    // second part
-    if (s < 10)
-    {
-        lcd_time += '0';
+    else {
+        mm = rtc_now.minute();
+        if (mm != last_minute) {
+            last_minute = mm;
+            if (mm < 10)
+            {
+                lcd_time += '0';
+            }
+            lcd_time += mm + String{":00"};
+            lcd.setCursor(11, 1);
+            lcd.print(lcd_time);
+        }
+        else {
+            ss == rtc_now.second();
+            if (rtc_now.second() < 10)
+            {
+                lcd_time += '0';
+            }
+            lcd_time += rtc_now.second();
+            lcd.setCursor(14, 1);
+            lcd.print(lcd_time);
+        }
     }
-    lcd_time += s;
-
-    lcd.setCursor(8, 1);
-    lcd.print(lcd_time);
 }
 
 void call(void(*f)(...), unsigned long& last_update, unsigned long const freq)
@@ -148,6 +158,7 @@ bool PM = false;
 
 class DataEntry 
 {
+    DateTime _dt;
     byte _year, _month, _date, _hour, _minute, _second;       
     float _temperature;
 private:
@@ -159,21 +170,13 @@ private:
     }
 public:
     DataEntry(){};
-    DataEntry(const DS3231* rtc, const DallasTemperature* temp)
-        : DataEntry(
-            rtc->getYear(), rtc->getMonth(century_rollover), rtc->getDate(), 
-            rtc->getHour(H12,PM), rtc->getMinute(), rtc->getSecond(),
-            temp->getTempCByIndex(0)
+    DataEntry(const RTC_DS3231* rtc, const DallasTemperature* temp)
+        : DataEntry(rtc->now(), temp->getTempCByIndex(0)
           ) {
     }
-    DataEntry(byte year, byte month, byte date, byte hour, byte minute, byte second, float temperature)
-        : _year(year), _month(month), _date(date), _hour(hour), _minute(minute), _second(second), _temperature(temperature) {}
-    byte getYear() {return _year;}
-    byte getMonth() {return _month;}
-    byte getDate() {return _date;}
-    byte getHour() {return _hour;}
-    byte getMinute() {return _minute;}
-    byte getSecond() {return _second;}
+    DataEntry(const DateTime& dt, float temperature)
+        : _dt(dt), _temperature(temperature) {}
+    const DateTime getDateTime() {return _dt;}
     float getTemp() {return _temperature;}
 
     String getTimeString() {
@@ -203,33 +206,60 @@ public:
 void setRTC()
 {
 //    rtc.setYear(19);
-//    rtc.setMonth(03);
-//    rtc.setDate(23);
-//    rtc.setHour(18);
-//    rtc.setMinute(06);
+//    rtc.setMonth(12);
+//    rtc.setDate(1);
+//    rtc.setHour(12);
+//    rtc.setMinute(48);
 //    rtc.setSecond(30);  
 }
 
 String strSession;
 String startTimeStr;
-void setup()
+
+const byte INTERRUPT_DIGITAL_PIN = 2;
+#define ALRM1_MATCH_EVERY_SEC  0b1111  // once a second
+#define ALRM1_MATCH_SEC        0b1110  // when seconds match
+#define ALRM1_MATCH_MIN_SEC    0b1100  // when minutes and seconds match
+#define ALRM1_MATCH_HR_MIN_SEC 0b1000  // when hours, minutes, and seconds match
+
+#define ALRM2_ONCE_PER_MIN     0b111   // once per minute (00 seconds of every minute)
+#define ALRM2_MATCH_MIN        0b110   // when minutes match
+#define ALRM2_MATCH_HR_MIN     0b100   // when hours and minutes match
+
+volatile bool time_updated = true;
+
+void update_time()
 {
-  // set up the LCD's number of columns and rows:
-  lcd.begin(16, 2);
-  lcd.createChar(0, degree_symbol);
-  // Print a message to the LCD.
-  lcd.setCursor(0, 0);
-  lcd.print("Temp");
+    time_updated = true;
+}
 
-  sensors.begin();
+void setupInterrupt()
+{
+    // enable the 1 Hz output
+    rtc.writeSqwPinMode (DS3231_SquareWave1Hz);    
+    pinMode(INTERRUPT_DIGITAL_PIN, INPUT_PULLUP);
+    attachInterrupt(digitalPinToInterrupt(INTERRUPT_DIGITAL_PIN), update_time, FALLING);
+}
 
-  // Open serial communications and wait for port to open:
-  //    Serial.begin(9600);
-  //    while (!Serial) {
-  //        ; // wait for serial port to connect. Needed for native USB port only
-  //    }
-
-  //    Serial.print("Initializing SD card...");
+void setup()
+{    
+    Serial.begin(9600);
+    // set up the LCD's number of columns and rows:
+    lcd.begin(16, 2);
+    lcd.createChar(0, degree_symbol);
+    // Print a message to the LCD.
+    lcd.setCursor(0, 0);
+    lcd.print("Temp");
+    
+    sensors.begin();
+    
+    // Open serial communications and wait for port to open:
+    //    Serial.begin(9600);
+    //    while (!Serial) {
+    //        ; // wait for serial port to connect. Needed for native USB port only
+    //    }
+    
+    //    Serial.print("Initializing SD card...");
 
     if (!SD.begin(7)) 
     {
@@ -240,12 +270,16 @@ void setup()
 
     // Delay a bit so that RTC would properly init
     DataEntry startTime(&rtc, &sensors);
-//    startTimeStr = startTime.getTimeShort();
+    // startTimeStr = startTime.getTimeShort();
     startTimeStr = "0001";
     
     Wire.begin();
-    
+
+    //setRTC();
+
     display_date();
+
+    setupInterrupt();
 }
 
 DataEntry data_entries[10];
@@ -253,6 +287,9 @@ byte iDE = 0;
 
 void record_data()
 {    
+    sensors.requestTemperatures();
+    t = sensors.getTempCByIndex(0);   
+
     data_entries[iDE] = DataEntry(&rtc, &sensors);
     iDE = (iDE + 1) % 10;
 }
@@ -275,15 +312,14 @@ void write_SD()
 void loop() 
 {
     time = millis();
-    sensors.requestTemperatures();
-    t = sensors.getTempCByIndex(0);
 
-    s = rtc.getSecond();
-    m = rtc.getMinute();
-    h = rtc.getHour(H12,PM);
-    
     call(record_data, last_record_data, 1000);
     call(write_SD, last_SD_card_write, 10000);
     call(display_temp, last_temp_update, 1000);
-    call(display_time, last_time_update, 1000);
+    
+    if (time_updated) {
+        rtc_now = rtc.now();
+        display_time();
+        time_updated = false;
+    }
 }
