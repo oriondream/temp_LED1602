@@ -1,6 +1,19 @@
 #include <Wire.h>
 #include "RTClib.h"
 
+/**
+ * Libraries:
+ *   name: RTClib
+ *     version: 1.3.3
+ *     author: Adafruit
+ *   name:DS3231
+ *     version: 1.0.2
+ *     author: Andrew Wickert
+ *   name:MAX 31850 DallasTemp
+ *     version: 1.0.0
+ *     author: Adafruit
+ */
+
 /*
   The circuit:
    LCD VSS -> ground
@@ -84,13 +97,16 @@ void display_date()
 {
     String lcd_date = "";
     DateTime dt = rtc.now();
+    int pos = 0;
     lcd_date += dt.day();
-    lcd_date += "/";
+    if (dt.day() < 10) ++pos;
+    lcd_date += "-";
     lcd_date += dt.month();
-    lcd_date += "/20";
+    if (dt.month() < 10) ++pos;
+    lcd_date += "-";
     lcd_date += dt.year();
 
-    lcd.setCursor(7,0);
+    lcd.setCursor(6 + pos,0);
     lcd.print(lcd_date);
 }
 
@@ -104,8 +120,8 @@ void display_time()
     hh = rtc_now.hour();
     if (hh != last_hour) {
         last_hour = hh;
-        if (rtc_now.date() != last_date) {
-            last_date = rtc_now.date();
+        if (rtc_now.day() != last_date) {
+            last_date = rtc_now.day();
             display_date();
         }
         
@@ -159,7 +175,6 @@ bool PM = false;
 class DataEntry 
 {
     DateTime _dt;
-    byte _year, _month, _date, _hour, _minute, _second;       
     float _temperature;
 private:
     String zero(byte v) {
@@ -180,37 +195,33 @@ public:
     float getTemp() {return _temperature;}
 
     String getTimeString() {
-      return zero(_hour) + String{_hour} + ":" 
-           + zero(_minute) + String{_minute} + ":"
-           + zero(_second) + String{_second};
+      return zero(_dt.hour()) + String{_dt.hour()} + ":" 
+           + zero(_dt.minute()) + String{_dt.minute()} + ":"
+           + zero(_dt.second()) + String{_dt.second()};
     }
 
     String getDateString() {
-      return String{_year} + "/" + zero(_month) + String{_month} + "/" 
-           + zero(_date) + String{_date};
+      return String{_dt.year()} + "/" + zero(_dt.month()) + String{_dt.month()} + "/" 
+           + zero(_dt.day()) + String{_dt.day()};
     }
 
     String getDateTimeString() {
-      return String{_year} + zero(_month) + String{_month} 
-                           + zero(_date) + String{_date} 
-                           + zero(_hour) + String{_hour} 
-                           + zero(_minute) + String{_minute} 
-                           + zero(_second) + String{_second};
+      return String{_dt.year()} + zero(_dt.month()) + String{_dt.month()} 
+                           + zero(_dt.day()) + String{_dt.day()} 
+                           + zero(_dt.hour()) + String{_dt.hour()} 
+                           + zero(_dt.minute()) + String{_dt.minute()} 
+                           + zero(_dt.second()) + String{_dt.second()};
     }
     String getTimeShort() {
-      return zero(_hour) + String{_hour} 
-           + zero(_minute) + String{_minute};
+      return zero(_dt.hour()) + String{_dt.hour()} 
+           + zero(_dt.minute()) + String{_dt.minute()};
     }
 };
 
 void setRTC()
 {
-//    rtc.setYear(19);
-//    rtc.setMonth(12);
-//    rtc.setDate(1);
-//    rtc.setHour(12);
-//    rtc.setMinute(48);
-//    rtc.setSecond(30);  
+//    DateTime _now(2021,5,25,20,34,50);
+//    rtc.adjust(_now);
 }
 
 String strSession;
@@ -275,7 +286,7 @@ void setup()
     
     Wire.begin();
 
-    //setRTC();
+    setRTC();
 
     display_date();
 
