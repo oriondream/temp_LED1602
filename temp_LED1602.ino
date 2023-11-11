@@ -2,6 +2,10 @@
 #include "RTClib.h"
 
 /**
+ * IMPORTANT
+ * 
+ *     MAKE SURE THAT LIBRARIES VERSION ARE CORRECT !!!
+ * 
  * Libraries:
  *   name: RTClib
  *     version: 1.3.3
@@ -10,7 +14,7 @@
  *     version: 1.0.2
  *     author: Andrew Wickert
  *   name:MAX 31850 DallasTemp
- *     version: 1.0.0
+ *     version: 1.1.4
  *     author: Adafruit
  */
 
@@ -252,47 +256,6 @@ void setupInterrupt()
     attachInterrupt(digitalPinToInterrupt(INTERRUPT_DIGITAL_PIN), update_time, FALLING);
 }
 
-void setup()
-{    
-    Serial.begin(9600);
-    // set up the LCD's number of columns and rows:
-    lcd.begin(16, 2);
-    lcd.createChar(0, degree_symbol);
-    // Print a message to the LCD.
-    lcd.setCursor(0, 0);
-    lcd.print("Temp");
-    
-    sensors.begin();
-    
-    // Open serial communications and wait for port to open:
-    //    Serial.begin(9600);
-    //    while (!Serial) {
-    //        ; // wait for serial port to connect. Needed for native USB port only
-    //    }
-    
-    //    Serial.print("Initializing SD card...");
-
-    if (!SD.begin(7)) 
-    {
-        //        Serial.println("initialization failed!");
-        return;
-    }
-    //    Serial.println("initialization done.");
-
-    // Delay a bit so that RTC would properly init
-    DataEntry startTime(&rtc, &sensors);
-    // startTimeStr = startTime.getTimeShort();
-    startTimeStr = "0001";
-    
-    Wire.begin();
-
-    setRTC();
-
-    display_date();
-
-    setupInterrupt();
-}
-
 DataEntry data_entries[10];
 byte iDE = 0;
 
@@ -328,9 +291,52 @@ void loop()
     call(write_SD, last_SD_card_write, 10000);
     call(display_temp, last_temp_update, 1000);
     
-    if (time_updated) {
+    if (time_updated) 
+    {
         rtc_now = rtc.now();
         display_time();
         time_updated = false;
     }
+}
+
+void setup()
+{    
+    Serial.begin(9600);
+    // set up the LCD's number of columns and rows:
+    lcd.begin(16, 2);
+    lcd.createChar(0, degree_symbol);
+    // Print a message to the LCD.
+    lcd.setCursor(0, 0);
+    lcd.print("Temp");
+    
+    sensors.begin();
+    
+    // Open serial communications and wait for port to open:
+    Serial.begin(9600);
+    while (!Serial) 
+    {
+         ; // wait for serial port to connect. Needed for native USB port only
+    }
+    
+    Serial.print("Initializing SD card...");
+
+    if (!SD.begin(7)) 
+    {
+        Serial.println("initialization failed!");
+        return;
+    }
+    Serial.println("initialization done.");
+
+    // Delay a bit so that RTC would properly init
+    DataEntry startTime(&rtc, &sensors);
+    // startTimeStr = startTime.getTimeShort();
+    startTimeStr = "0001";
+    
+    Wire.begin();
+
+    setRTC();
+
+    display_date();
+
+    setupInterrupt();
 }
