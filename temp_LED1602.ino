@@ -256,6 +256,7 @@ void setupInterrupt()
     attachInterrupt(digitalPinToInterrupt(INTERRUPT_DIGITAL_PIN), update_time, FALLING);
 }
 
+File fTempLog;
 DataEntry data_entries[10];
 byte iDE = 0;
 
@@ -268,18 +269,26 @@ void record_data()
     iDE = (iDE + 1) % 10;
 }
 
+void error(const String& str)
+{
+    lcd.setCursor(0, 0);
+    lcd.print(str);
+}
+
 void write_SD()
 {
-    File fTempLog;
-    fTempLog = SD.open("temp.log", FILE_WRITE);
-
-    if (fTempLog) {
+    if (fTempLog) 
+    {
         for (auto e:data_entries) {
             String str = e.getDateString() + String{"\t"} 
                        + e.getTimeString() + String{"\t"} + String{e.getTemp()};
             fTempLog.println(str);
         }
-        fTempLog.close();
+        fTempLog.flush();
+    }
+    else
+    {
+        error("E001");
     }
 }
 
@@ -305,6 +314,7 @@ void setup()
     // set up the LCD's number of columns and rows:
     lcd.begin(16, 2);
     lcd.createChar(0, degree_symbol);
+    
     // Print a message to the LCD.
     lcd.setCursor(0, 0);
     lcd.print("Temp");
@@ -323,8 +333,11 @@ void setup()
     if (!SD.begin(7)) 
     {
         Serial.println("initialization failed!");
+        error("E002");
         return;
     }
+    fTempLog = SD.open("temp.log", FILE_WRITE);
+
     Serial.println("initialization done.");
 
     // Delay a bit so that RTC would properly init
