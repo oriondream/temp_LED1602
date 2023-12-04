@@ -41,6 +41,9 @@
 // OneWire
 #include <OneWire.h>
 #define ONE_WIRE_PIN 6
+#define MAX_SD_INIT_ATTEMPT 5
+
+unsigned long start_time = millis();
 
 OneWire oneWire(ONE_WIRE_PIN);
 DallasTemperature sensors(&oneWire);
@@ -53,6 +56,9 @@ const int RS = 9, EN = 8, D4 = 14, D5 = 15, D6 = 16, D7 = 17;
 LiquidCrystal lcd(RS, EN, D4, D5, D6, D7);
 
 bool SD_OK = true;
+
+volatile bool time_updated = true;
+volatile bool display_mod = true;
 
 // Realtime clock object
 RTC_DS3231  rtc;
@@ -103,62 +109,175 @@ void display_date()
     DateTime dt = rtc.now();
     int pos = 0;
     lcd_date += dt.day();
-    if (dt.day() < 10) ++pos;
+    if (dt.day() < 10) 
+    {
+       ++pos;
+       lcd_date = String{" "} + lcd_date;
+    }
     lcd_date += "-";
     lcd_date += dt.month();
-    if (dt.month() < 10) ++pos;
+    if (dt.month() < 10) 
+    {
+        ++pos;
+        lcd_date = String{" "} + lcd_date;
+    }
     lcd_date += "-";
     lcd_date += dt.year();
 
-    lcd.setCursor(6 + pos,0);
+    lcd.setCursor(5 + pos,1);
     lcd.print(lcd_date);
 }
 
 uint8_t last_date, last_hour, last_minute;
 
+String last_displayed_time_lapsed = "            ";
+
+void display_time_lapsed()
+{
+    String str{""};
+    unsigned long seconds = millis()/1000;
+    unsigned long minutes = seconds / 60;
+    unsigned long hours = minutes / 60;
+    unsigned long days = hours / 24;
+    unsigned display_seconds = seconds % 60;
+    unsigned display_minutes = minutes % 60;
+    unsigned display_hours = hours % 24;
+
+    if (days > 0)
+    {
+        str += days;
+        str += "d:";
+    }
+
+    if (days > 0 || display_hours > 0)
+    {
+        if (display_hours < 10)
+        {
+            str += "0";
+        }
+        str += display_hours;
+        str += ":";
+    }
+
+    if (days > 0 || display_hours > 0 || display_minutes > 0)
+    {
+        if (display_minutes < 10)
+        {
+            str += "0";
+        }
+        str += display_minutes;
+        str += ":";
+    }
+
+    if (display_seconds < 10 && (days > 0 || display_hours > 0 || display_minutes > 0))
+    {
+        str += "0";
+    }
+    str += display_seconds;
+
+    while (str.length() < 12)
+    {
+      str = String{' '} + str;
+    }
+
+    char diff;
+    for (int i = 0; i <= 11; i++)
+    {
+        if (str[i] != last_displayed_time_lapsed[i])
+        {
+            diff = i;
+            break;
+        }
+    }
+    String update{""};
+    for (char i = diff; i <= 11; i++)
+    {
+        update += str[i];
+    }
+    lcd.setCursor(4 + diff, 0);
+    lcd.print(update);
+
+    last_displayed_time_lapsed = str;
+}
+
+bool display_time_in_whole = false;
+
 void display_time()
 {
+    if (display_mod == false)
+    {
+        display_time_lapsed();
+        return;
+    }
+
     lcd_time = "";
 
     uint8_t hh, mm, ss;
     hh = rtc_now.hour();
-    if (hh != last_hour) {
-        last_hour = hh;
-        if (rtc_now.day() != last_date) {
-            last_date = rtc_now.day();
-            display_date();
-        }
-        
+
+    if (display_time_in_whole)
+    {
         if (hh < 10)
         {
             lcd_time += ' ';
         }
-        lcd_time += hh + String{":00:00"};
-        lcd.setCursor(8, 1);
-        lcd.print(lcd_time);
-    }
-    else {
         mm = rtc_now.minute();
-        if (mm != last_minute) {
-            last_minute = mm;
-            if (mm < 10)
-            {
-                lcd_time += '0';
-            }
-            lcd_time += mm + String{":00"};
-            lcd.setCursor(11, 1);
-            lcd.print(lcd_time);
+        if (mm < 10)
+        {
+            lcd_time += '0';
         }
-        else {
-            ss == rtc_now.second();
-            if (rtc_now.second() < 10)
-            {
-                lcd_time += '0';
-            }
-            lcd_time += rtc_now.second();
-            lcd.setCursor(14, 1);
-            lcd.print(lcd_time);
+        ss == rtc_now.second();
+        if (rtc_now.second() < 10)
+        {
+            lcd_time += '0';
         }
+        lcd_time += rtc_now.second();
+        lcd.setCursor(8, 0);
+        lcd.print(lcd_time);
+        display_time_in_whole = false;
+    }
+    else
+    {
+      if (hh != last_hour || display_time_in_whole)
+      {
+          last_hour = hh;
+          if (rtc_now.day() != last_date) {
+              last_date = rtc_now.day();
+              display_date();
+          }
+          
+          if (hh < 10)
+          {
+              lcd_time += ' ';
+          }
+          lcd_time += hh + String{":00:00"};
+          lcd.setCursor(8, 0);
+          lcd.print(lcd_time);
+      }
+      else 
+      {
+          mm = rtc_now.minute();
+          if (mm != last_minute) {
+              last_minute = mm;
+              if (mm < 10)
+              {
+                  lcd_time += '0';
+              }
+              lcd_time += mm + String{":00"};
+              lcd.setCursor(11, 0);
+              lcd.print(lcd_time);
+          }
+          else {
+              ss == rtc_now.second();
+              if (rtc_now.second() < 10)
+              {
+                  lcd_time += '0';
+              }
+              lcd_time += rtc_now.second();
+              lcd.setCursor(14, 0);
+              lcd.print(lcd_time);
+          }
+      }
     }
 }
 
@@ -232,6 +351,8 @@ String strSession;
 String startTimeStr;
 
 const byte INTERRUPT_DIGITAL_PIN = 2;
+const byte INTERRUPT_DISPLAY_MOD = 3;
+
 #define ALRM1_MATCH_EVERY_SEC  0b1111  // once a second
 #define ALRM1_MATCH_SEC        0b1110  // when seconds match
 #define ALRM1_MATCH_MIN_SEC    0b1100  // when minutes and seconds match
@@ -241,11 +362,21 @@ const byte INTERRUPT_DIGITAL_PIN = 2;
 #define ALRM2_MATCH_MIN        0b110   // when minutes match
 #define ALRM2_MATCH_HR_MIN     0b100   // when hours and minutes match
 
-volatile bool time_updated = true;
-
 void update_time()
 {
     time_updated = true;
+}
+
+void update_display_mod()
+{
+    display_mod = !display_mod;
+
+    if (display_mod)
+    {
+        display_time_in_whole = true;
+    }
+    lcd.setCursor(4, 0);
+    lcd.print("            ");
 }
 
 void setupInterrupt()
@@ -253,7 +384,9 @@ void setupInterrupt()
     // enable the 1 Hz output
     rtc.writeSqwPinMode (DS3231_SquareWave1Hz);    
     pinMode(INTERRUPT_DIGITAL_PIN, INPUT_PULLUP);
+    pinMode(INTERRUPT_DISPLAY_MOD, INPUT_PULLUP);
     attachInterrupt(digitalPinToInterrupt(INTERRUPT_DIGITAL_PIN), update_time, FALLING);
+    attachInterrupt(digitalPinToInterrupt(INTERRUPT_DISPLAY_MOD), update_display_mod, CHANGE);
 }
 
 File fTempLog;
@@ -330,7 +463,13 @@ void setup()
     
     Serial.print("Initializing SD card...");
 
-    if (!SD.begin(7)) 
+    int nAttempt = 0;
+    while (nAttempt < MAX_SD_INIT_ATTEMPT && !SD.begin(7))
+    {
+        nAttempt ++;
+        delay(3000);
+    }
+    if (nAttempt == MAX_SD_INIT_ATTEMPT)
     {
         Serial.println("initialization failed!");
         error("E002");
