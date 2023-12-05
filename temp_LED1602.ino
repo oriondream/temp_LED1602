@@ -128,6 +128,9 @@ void display_date()
     lcd.print(lcd_date);
 }
 
+volatile bool display_time_in_whole = false;
+volatile bool display_time_lapsed_in_whole = false;
+
 uint8_t last_date, last_hour, last_minute;
 
 String last_displayed_time_lapsed = "            ";
@@ -159,7 +162,7 @@ void display_time_lapsed()
         str += ":";
     }
 
-    if (days > 0 || display_hours > 0 || display_minutes > 0)
+    if (days > 0 || display_minutes > 0 || display_hours > 0)
     {
         if (display_minutes < 10)
         {
@@ -169,7 +172,7 @@ void display_time_lapsed()
         str += ":";
     }
 
-    if (display_seconds < 10 && (days > 0 || display_hours > 0 || display_minutes > 0))
+    if (display_seconds < 10 && (display_minutes > 0 || display_hours > 0 || days > 0))
     {
         str += "0";
     }
@@ -194,13 +197,21 @@ void display_time_lapsed()
     {
         update += str[i];
     }
-    lcd.setCursor(4 + diff, 0);
-    lcd.print(update);
+
+    if (display_time_lapsed_in_whole)
+    {
+        lcd.setCursor(4, 0);
+        lcd.print(str);
+        display_time_lapsed_in_whole = false;
+    }
+    else
+    {
+        lcd.setCursor(4 + diff, 0);
+        lcd.print(update);
+    }
 
     last_displayed_time_lapsed = str;
 }
-
-bool display_time_in_whole = false;
 
 void display_time()
 {
@@ -219,26 +230,30 @@ void display_time()
     {
         if (hh < 10)
         {
-            lcd_time += ' ';
+            lcd_time += '0';
         }
+        lcd_time += hh;
+        lcd_time += ':';
         mm = rtc_now.minute();
         if (mm < 10)
         {
             lcd_time += '0';
         }
+        lcd_time += mm;
+        lcd_time += ':';
         ss == rtc_now.second();
-        if (rtc_now.second() < 10)
+        if (ss < 10)
         {
             lcd_time += '0';
         }
-        lcd_time += rtc_now.second();
+        lcd_time += ss;
         lcd.setCursor(8, 0);
         lcd.print(lcd_time);
         display_time_in_whole = false;
     }
     else
     {
-      if (hh != last_hour || display_time_in_whole)
+      if (hh != last_hour)
       {
           last_hour = hh;
           if (rtc_now.day() != last_date) {
@@ -269,11 +284,11 @@ void display_time()
           }
           else {
               ss == rtc_now.second();
-              if (rtc_now.second() < 10)
+              if (ss < 10)
               {
                   lcd_time += '0';
               }
-              lcd_time += rtc_now.second();
+              lcd_time += ss;
               lcd.setCursor(14, 0);
               lcd.print(lcd_time);
           }
@@ -375,8 +390,10 @@ void update_display_mod()
     {
         display_time_in_whole = true;
     }
-    lcd.setCursor(4, 0);
-    lcd.print("            ");
+    else
+    {
+        display_time_lapsed_in_whole = true;
+    }
 }
 
 void setupInterrupt()
@@ -431,7 +448,7 @@ void loop()
 
     call(record_data, last_record_data, 1000);
     call(write_SD, last_SD_card_write, 10000);
-    call(display_temp, last_temp_update, 1000);
+    call(display_temp, last_temp_update, 3000);
     
     if (time_updated) 
     {
