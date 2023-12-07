@@ -224,10 +224,10 @@ void display_time()
     lcd_time = "";
 
     uint8_t hh, mm, ss;
-    hh = rtc_now.hour();
 
     if (display_time_in_whole)
     {
+        hh = rtc_now.hour();
         if (hh < 10)
         {
             lcd_time += '0';
@@ -253,46 +253,52 @@ void display_time()
     }
     else
     {
+      byte update_length = 0;
+
+      hh = rtc_now.hour();
       if (hh != last_hour)
       {
           last_hour = hh;
-          if (rtc_now.day() != last_date) {
+          if (rtc_now.day() != last_date) 
+          {
               last_date = rtc_now.day();
               display_date();
           }
-          
           if (hh < 10)
           {
-              lcd_time += ' ';
+              lcd_time += '0';
           }
-          lcd_time += hh + String{":00:00"};
-          lcd.setCursor(8, 0);
-          lcd.print(lcd_time);
+          lcd_time += hh + String{":"};
+          update_length += 3;
       }
-      else 
+
+      mm = rtc_now.minute();
+      if (mm != last_minute) {
+          last_minute = mm;
+          if (mm < 10)
+          {
+              lcd_time += '0';
+          }
+          lcd_time += mm;
+          lcd_time += String{":"};
+          update_length += 3;
+      }
+
+      ss == rtc_now.second();
+      if (ss % 10 == 0)
       {
-          mm = rtc_now.minute();
-          if (mm != last_minute) {
-              last_minute = mm;
-              if (mm < 10)
-              {
-                  lcd_time += '0';
-              }
-              lcd_time += mm + String{":00"};
-              lcd.setCursor(11, 0);
-              lcd.print(lcd_time);
-          }
-          else {
-              ss == rtc_now.second();
-              if (ss < 10)
-              {
-                  lcd_time += '0';
-              }
-              lcd_time += ss;
-              lcd.setCursor(14, 0);
-              lcd.print(lcd_time);
-          }
+          lcd_time += (ss/10);
+          lcd_time += String{"0"};
+          update_length += 2;
       }
+      else
+      {
+          lcd_time += ss % 10;
+          update_length += 1;
+      }
+
+      lcd.setCursor(16-update_length, 0);
+      lcd.print(lcd_time);
     }
 }
 
