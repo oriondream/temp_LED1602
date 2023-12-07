@@ -283,12 +283,12 @@ void display_time()
               lcd.print(lcd_time);
           }
           else {
-              ss == rtc_now.second();
-              if (rtc_now.second() < 10)
+              ss = rtc_now.second();
+              if (ss < 10)
               {
                   lcd_time += '0';
               }
-              lcd_time += rtc_now.second();
+              lcd_time += ss;
               lcd.setCursor(14, 0);
               lcd.print(lcd_time);
           }
