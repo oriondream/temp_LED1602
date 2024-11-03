@@ -10,10 +10,10 @@
  *   name: RTClib
  *     version: 1.3.3
  *     author: Adafruit
- *   name:DS3231
+ *   name: DS3231
  *     version: 1.0.2
  *     author: Andrew Wickert
- *   name:MAX 31850 DallasTemp
+ *   name: MAX31850 DallasTemp
  *     version: 1.1.4
  *     author: Adafruit
  */
@@ -32,16 +32,19 @@
    LCD A -> Arduino 2
 */
 #include <Wire.h>
+
 // File
 #include <SPI.h>
 #include <SD.h>
+#define SD_PIN_CS 10
+
 #include <DallasTemperature.h>
 #include <LiquidCrystal.h>
 
 // OneWire
 #include <OneWire.h>
 #define ONE_WIRE_PIN 6
-#define MAX_SD_INIT_ATTEMPT 5
+#define MAX_SD_INIT_ATTEMPT 3
 
 unsigned long start_time = millis();
 
@@ -447,7 +450,7 @@ void loop()
     time = millis();
 
     call(record_data, last_record_data, 1000);
-    call(write_SD, last_SD_card_write, 10000);
+    // call(write_SD, last_SD_card_write, 10000);
     call(display_temp, last_temp_update, 3000);
     
     if (time_updated) 
@@ -460,7 +463,7 @@ void loop()
 
 void setup()
 {    
-    Serial.begin(9600);
+    Serial.begin(115200);
     // set up the LCD's number of columns and rows:
     lcd.begin(16, 2);
     lcd.createChar(0, degree_symbol);
@@ -472,19 +475,19 @@ void setup()
     sensors.begin();
     
     // Open serial communications and wait for port to open:
-    Serial.begin(9600);
+    Serial.begin(115200);
     while (!Serial) 
     {
          ; // wait for serial port to connect. Needed for native USB port only
     }
     
-    Serial.print("Initializing SD card...");
+    Serial.println("\nInitializing SD card...");
 
     int nAttempt = 0;
-    while (nAttempt < MAX_SD_INIT_ATTEMPT && !SD.begin(7))
+    while (nAttempt < MAX_SD_INIT_ATTEMPT && !SD.begin(SD_PIN_CS))
     {
         nAttempt ++;
-        delay(3000);
+        delay(100);
     }
     if (nAttempt == MAX_SD_INIT_ATTEMPT)
     {
@@ -494,7 +497,7 @@ void setup()
     }
     fTempLog = SD.open("temp.log", FILE_WRITE);
 
-    Serial.println("initialization done.");
+    Serial.println("Initialization done.");
 
     // Delay a bit so that RTC would properly init
     DataEntry startTime(&rtc, &sensors);
@@ -503,9 +506,13 @@ void setup()
     
     Wire.begin();
 
+    Serial.println("Wire system is on.");
+
     setRTC();
 
     display_date();
 
     setupInterrupt();
+
+    Serial.println("Setup completed.");
 }
