@@ -361,8 +361,8 @@ public:
 
 void setRTC()
 {
-//    DateTime _now(2021,5,25,20,34,50);
-//    rtc.adjust(_now);
+  //  DateTime _now(2024,11,4,15,42,50);
+  //  rtc.adjust(_now);
 }
 
 String strSession;
@@ -433,8 +433,8 @@ void write_SD()
     if (fTempLog) 
     {
         for (auto e:data_entries) {
-            String str = e.getDateString() + String{"\t"} 
-                       + e.getTimeString() + String{"\t"} + String{e.getTemp()};
+            String str = e.getDateString() + String{","} 
+                       + e.getTimeString() + String{","} + String{e.getTemp()};
             fTempLog.println(str);
         }
         fTempLog.flush();
@@ -450,7 +450,7 @@ void loop()
     time = millis();
 
     call(record_data, last_record_data, 1000);
-    // call(write_SD, last_SD_card_write, 10000);
+    call(write_SD, last_SD_card_write, 10000);
     call(display_temp, last_temp_update, 3000);
     
     if (time_updated) 
