@@ -127,7 +127,7 @@ void display_date()
     lcd_date += "-";
     lcd_date += dt.year();
 
-    lcd.setCursor(5 + pos,1);
+    lcd.setCursor(6 + pos,1);
     lcd.print(lcd_date);
 }
 
@@ -233,7 +233,7 @@ void display_time()
         hh = rtc_now.hour();
         if (hh < 10)
         {
-            lcd_time += '0';
+            lcd_time += ' ';
         }
         lcd_time += hh;
         lcd_time += ':';
@@ -250,7 +250,8 @@ void display_time()
             lcd_time += '0';
         }
         lcd_time += ss;
-        lcd.setCursor(8, 0);
+        lcd_time = "    " + lcd_time;
+        lcd.setCursor(4, 0);
         lcd.print(lcd_time);
         display_time_in_whole = false;
     }
@@ -361,7 +362,7 @@ public:
 
 void setRTC()
 {
-  //  DateTime _now(2024,11,4,15,42,50);
+  //  DateTime _now(2024,11,11,21,15,00);
   //  rtc.adjust(_now);
 }
 
@@ -389,14 +390,16 @@ void update_display_mod()
 {
     display_mod = !display_mod;
 
-    if (display_mod)
-    {
-        display_time_in_whole = true;
-    }
-    else
-    {
-        display_time_lapsed_in_whole = true;
-    }
+    display_time_in_whole = display_mod;
+    display_time_lapsed_in_whole = !display_mod;
+    // if (display_mod)
+    // {
+    //     display_time_in_whole = true;
+    // }
+    // else
+    // {
+    //     display_time_lapsed_in_whole = true;
+    // }
 }
 
 void setupInterrupt()
@@ -464,14 +467,17 @@ void loop()
 void setup()
 {    
     Serial.begin(115200);
+
+    delay(100);
     // set up the LCD's number of columns and rows:
     lcd.begin(16, 2);
     lcd.createChar(0, degree_symbol);
-    
+
     // Print a message to the LCD.
     lcd.setCursor(0, 0);
     lcd.print("Temp");
     
+    delay(100);
     sensors.begin();
     
     // Open serial communications and wait for port to open:
@@ -503,7 +509,8 @@ void setup()
     DataEntry startTime(&rtc, &sensors);
     // startTimeStr = startTime.getTimeShort();
     startTimeStr = "0001";
-    
+
+    delay(100);   
     Wire.begin();
 
     Serial.println("Wire system is on.");
