@@ -388,18 +388,10 @@ void update_time()
 
 void update_display_mod()
 {
-    display_mod = !display_mod;
+    display_mod = !digitalRead(INTERRUPT_DISPLAY_MOD);
 
     display_time_in_whole = display_mod;
     display_time_lapsed_in_whole = !display_mod;
-    // if (display_mod)
-    // {
-    //     display_time_in_whole = true;
-    // }
-    // else
-    // {
-    //     display_time_lapsed_in_whole = true;
-    // }
 }
 
 void setupInterrupt()
