@@ -20,16 +20,18 @@
 
 /*
   The circuit:
-   LCD VSS -> ground
-   LCD VCC -> 5V
-   LCD VO -> poty slider
-   LCD RS -> Arduino 9
-   LCD RW -> ground
-   LCD E -> Arduino 8
-   LCD D4 -> Arduino 5
-   LCD D5 -> Arduino 4
-   LCD D6 -> Arduino 3
-   LCD A -> Arduino 2
+   LCD | Arduino Pro Mini
+  ------------------
+   VSS | ground
+   VCC | 5V
+   VO  | poty slider
+   RS  | Arduino 9
+   RW  | ground
+   E   | Arduino 8
+   D4  | Arduino 5
+   D5  | Arduino 4
+   D6  | Arduino 3
+   A   | Arduino 2
 */
 #include <Wire.h>
 
@@ -64,7 +66,7 @@ volatile bool time_updated = true;
 volatile bool display_mod = true;
 
 // Realtime clock object
-RTC_DS3231  rtc;
+RTC_DS3231* rtc;
 DateTime rtc_now;
 
 bool LED_ON = true;
@@ -109,7 +111,7 @@ byte Second;
 void display_date()
 {
     String lcd_date = "";
-    DateTime dt = rtc.now();
+    DateTime dt = rtc->now();
     int pos = 0;
     lcd_date += dt.day();
     if (dt.day() < 10) 
@@ -127,7 +129,7 @@ void display_date()
     lcd_date += "-";
     lcd_date += dt.year();
 
-    lcd.setCursor(6 + pos,1);
+    lcd.setCursor(5 + pos,1);
     lcd.print(lcd_date);
 }
 
@@ -244,7 +246,7 @@ void display_time()
         }
         lcd_time += mm;
         lcd_time += ':';
-        ss == rtc_now.second();
+        ss = rtc_now.second(); // Fixed: was using == instead of =
         if (ss < 10)
         {
             lcd_time += '0';
@@ -254,9 +256,17 @@ void display_time()
         lcd.setCursor(4, 0);
         lcd.print(lcd_time);
         display_time_in_whole = false;
+        
+        // Update last values when displaying the whole time
+        last_hour = hh;
+        last_minute = mm;
+        last_date = rtc_now.day();
     }
     else
     {
+      // Get current hour first
+      hh = rtc_now.hour();
+      
       if (hh != last_hour || display_time_in_whole)
       {
           last_hour = hh;
@@ -265,6 +275,7 @@ void display_time()
               display_date();
           }
           
+          lcd_time = ""; // Reset lcd_time
           if (hh < 10)
           {
               lcd_time += ' ';
@@ -278,6 +289,7 @@ void display_time()
           mm = rtc_now.minute();
           if (mm != last_minute) {
               last_minute = mm;
+              lcd_time = ""; // Reset lcd_time
               if (mm < 10)
               {
                   lcd_time += '0';
@@ -288,6 +300,7 @@ void display_time()
           }
           else {
               ss = rtc_now.second();
+              lcd_time = ""; // Reset lcd_time
               if (ss < 10)
               {
                   lcd_time += '0';
@@ -362,8 +375,8 @@ public:
 
 void setRTC()
 {
-  //  DateTime _now(2024,11,11,21,15,00);
-  //  rtc.adjust(_now);
+//    DateTime _now(2025,05,12,21,00,00);
+//    rtc->adjust(_now);
 }
 
 String strSession;
@@ -397,7 +410,7 @@ void update_display_mod()
 void setupInterrupt()
 {
     // enable the 1 Hz output
-    rtc.writeSqwPinMode (DS3231_SquareWave1Hz);    
+    rtc->writeSqwPinMode (DS3231_SquareWave1Hz);    
     pinMode(INTERRUPT_DIGITAL_PIN, INPUT_PULLUP);
     pinMode(INTERRUPT_DISPLAY_MOD, INPUT_PULLUP);
     attachInterrupt(digitalPinToInterrupt(INTERRUPT_DIGITAL_PIN), update_time, FALLING);
@@ -413,7 +426,7 @@ void record_data()
     sensors.requestTemperatures();
     t = sensors.getTempCByIndex(0);   
 
-    data_entries[iDE] = DataEntry(&rtc, &sensors);
+    data_entries[iDE] = DataEntry(rtc, &sensors);
     iDE = (iDE + 1) % 10;
 }
 
@@ -450,7 +463,7 @@ void loop()
     
     if (time_updated) 
     {
-        rtc_now = rtc.now();
+        rtc_now = rtc->now();
         display_time();
         time_updated = false;
     }
@@ -481,6 +494,8 @@ void setup()
     
     Serial.println("\nInitializing SD card...");
 
+    delay(100);
+
     int nAttempt = 0;
     while (nAttempt < MAX_SD_INIT_ATTEMPT && !SD.begin(SD_PIN_CS))
     {
@@ -498,14 +513,17 @@ void setup()
     Serial.println("Initialization done.");
 
     // Delay a bit so that RTC would properly init
-    DataEntry startTime(&rtc, &sensors);
+    DataEntry startTime(rtc, &sensors);
     // startTimeStr = startTime.getTimeShort();
     startTimeStr = "0001";
 
-    delay(100);   
+    delay(100);
     Wire.begin();
 
     Serial.println("Wire system is on.");
+
+    delay(100);
+    rtc = new RTC_DS3231();
 
     setRTC();
 
