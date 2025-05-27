@@ -508,7 +508,7 @@ void setup()
         error("E002");
         return;
     }
-    fTempLog = SD.open("temp.log", FILE_WRITE);
+    fTempLog = SD.open("temp.log", O_CREAT | O_WRITE);
 
     Serial.println("Initialization done.");
 
